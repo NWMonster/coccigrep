@@ -116,8 +116,59 @@ if args.file_list:
 	for line in open(args.file_list, 'r'):
 		args.file.append(line.rstrip())
 
-# Find all the files to parse
 files = []
+
+# Search all the files in current directory
+if args.file == []:
+    result = []
+    pwd = os.getcwd()
+    coccigrep.setup(args.type, args.attribute, args.operation)
+    for dirpath, dirnames, filenames in os.walk(pwd):
+        for filename in filenames:
+            complete_name = os.path.join(dirpath, filename)
+            complete_name = '.' + complete_name[len(pwd):]
+            files.append(complete_name)
+            try:
+                coccigrep.run(files)
+                output = coccigrep.display(mode='vim')
+
+            except CocciRunException as err:
+                sys.stderr.write("Runtime error: " + str(err) + "\n")
+                sys.exit(1)
+            except CocciConfigException as err:
+                sys.stderr.write("Config error: " + str(err) + "\n")
+                sys.exit(1)
+
+            if args.context:
+                args.after = args.context
+                args.before = args.context
+
+            if args.vim:
+                output = coccigrep.display(mode='vim')
+            elif args.emacs:
+                output = coccigrep.display(mode='emacs')
+            elif args.color:
+                output = coccigrep.display(mode='color', oformat=args.oformat, before=args.before, after=args.after)
+            else:
+                output = coccigrep.display(mode='raw', before=args.before, after=args.after)
+
+            if len(output) > 0:
+                if output not in result:
+                    result.append(output)
+                    if args.verbose:
+                        print(complete_name + ': ' + output)
+                    else:
+                        print(output)
+                else:
+                    if args.verbose:
+                        print(complete_name + ': ' + output)
+            else:
+                if args.verbose:
+                    sys.stderr.write("No match found in %s\n" % (",".join(args.file)))
+            files = []
+    sys.exit(0)
+
+# Find all the files to parse
 for arg in args.file:
     if os.path.isfile(arg):
         position = bisect.bisect(files, arg)
